@@ -1,7 +1,15 @@
 # AMD Ryzen AI 9 HX 370 — ROCm / HIP build
-# Targets the Framework 13 (and similar) with integrated Radeon 890M (RDNA 3.5, gfx1151).
+# Targets the Framework 13 (and similar) with integrated Radeon 890M (RDNA 3.5, gfx1150).
 #
-# CRITICAL: gfx1151 is not yet in ROCm's official support matrix.
+# GPU identity clarification:
+#   gfx1150 = Radeon 890M  (Ryzen AI 9 HX 370, "Strix Point")  ← this Dockerfile
+#   gfx1151 = Radeon 8060s (Ryzen AI Max+ 395, "Strix Halo")
+#
+# Official support status (ROCm 7.1, March 2026):
+#   Neither gfx1150 nor gfx1151 appears in AMD's formal ROCm compatibility matrix.
+#   However, ROCm 7.0.2+ added hipBLAS support for both; support is functional but
+#   incomplete (e.g. rocWMMA kernels still missing). Expect rough edges.
+#
 # HSA_OVERRIDE_GFX_VERSION=11.0.0 tricks the ROCm HSA runtime into treating
 # the iGPU as gfx1100 (RDNA3), which IS officially supported and is close enough
 # in ISA to work correctly for PyTorch / OpenSplat workloads.
@@ -44,11 +52,12 @@ SHELL ["/bin/bash", "-c"]
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# --- ROCm / GPU identity for Ryzen AI 9 HX 370 (Radeon 890M, gfx1151) ---
+# --- ROCm / GPU identity for Ryzen AI 9 HX 370 (Radeon 890M, gfx1150) ---
 # Override HSA to treat the iGPU as gfx1100 (RDNA3) — the nearest supported target.
+# gfx1150 = Radeon 890M (Strix Point); gfx1151 = Radeon 8060s (Strix Halo, different chip)
 ENV HSA_OVERRIDE_GFX_VERSION=11.0.0
-ENV HCC_AMDGPU_TARGET=gfx1151
-ENV PYTORCH_ROCM_ARCH=gfx1151
+ENV HCC_AMDGPU_TARGET=gfx1150
+ENV PYTORCH_ROCM_ARCH=gfx1150
 
 WORKDIR /code
 
