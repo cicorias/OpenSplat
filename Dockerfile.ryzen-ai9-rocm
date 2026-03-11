@@ -3,7 +3,8 @@
 #
 # GPU identity clarification:
 #   gfx1150 = Radeon 890M  (Ryzen AI 9 HX 370, "Strix Point")  ← this Dockerfile
-#             Found in: Framework Laptop 13 (AMD, 2024)
+#             Found in: Framework Laptop 13 (AMD Ryzen AI 300 Series), announced Feb 2025,
+#             shipping from April 2025. CPU options: Ryzen AI 5 340, AI 7 350, AI 9 HX 370.
 #   gfx1151 = Radeon 8060s (Ryzen AI Max+ 395, "Strix Halo")
 #             Found in: Framework Desktop (Mini-ITX, 4.5L), shipping Q3/Q4 2025
 #             NOTE: The Strix Halo chip is a DESKTOP product from Framework, not a laptop.
