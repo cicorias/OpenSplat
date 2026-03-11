@@ -3,7 +3,10 @@
 #
 # GPU identity clarification:
 #   gfx1150 = Radeon 890M  (Ryzen AI 9 HX 370, "Strix Point")  ← this Dockerfile
+#             Found in: Framework Laptop 13 (AMD, 2024)
 #   gfx1151 = Radeon 8060s (Ryzen AI Max+ 395, "Strix Halo")
+#             Found in: Framework Desktop (Mini-ITX, 4.5L), shipping Q3/Q4 2025
+#             NOTE: The Strix Halo chip is a DESKTOP product from Framework, not a laptop.
 #
 # Official support status (ROCm 7.1, March 2026):
 #   Neither gfx1150 nor gfx1151 appears in AMD's formal ROCm compatibility matrix.
