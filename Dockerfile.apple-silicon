@@ -1,0 +1,84 @@
+# Apple Silicon (aarch64) — CPU build inside Docker
+#
+# MPS (Metal GPU) is a macOS host feature and is NOT available inside Docker
+# containers, even on Apple Silicon. This Dockerfile builds with CPU-only.
+# For native MPS acceleration, build directly on macOS (see README).
+#
+# This image uses the nvidia/cuda ARM64 base for consistency with the rest
+# of the series and for portability to other aarch64 Linux environments
+# (AWS Graviton, Ampere Altra, etc.).
+#
+# Build (from an Apple Silicon Mac or any ARM64 host):
+#   docker build -f Dockerfile.apple-silicon \
+#     -t opensplat:apple-silicon-cpu .
+#
+# Build (cross-compile from AMD64, requires Docker buildx + QEMU):
+#   docker buildx build --platform linux/arm64 \
+#     -f Dockerfile.apple-silicon -t opensplat:apple-silicon-cpu .
+#
+# Run:
+#   docker run --rm -v ~/data:/data opensplat:apple-silicon-cpu \
+#     opensplat /data/project -o /data/output.ply
+#
+# For NATIVE MPS acceleration on macOS (outside Docker):
+#   brew install cmake opencv
+#   curl -L https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.6.0.zip -o libtorch.zip
+#   unzip libtorch.zip
+#   mkdir build && cd build
+#   cmake .. -DCMAKE_PREFIX_PATH=$(pwd)/../libtorch \
+#            -DGPU_RUNTIME=MPS \
+#            -DCMAKE_BUILD_TYPE=Release
+#   make -j$(sysctl -n hw.logicalcpu)
+
+ARG TORCH_VERSION=2.6.0
+ARG CMAKE_BUILD_TYPE=Release
+
+FROM --platform=linux/arm64 nvidia/cuda:12.4.1-runtime-ubuntu24.04
+
+ARG TORCH_VERSION
+ARG CMAKE_BUILD_TYPE
+
+SHELL ["/bin/bash", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /code
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        cmake \
+        git \
+        ninja-build \
+        libopencv-dev \
+        python3 \
+        python3-pip \
+        unzip \
+        wget && \
+    apt-get autoremove -y --purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# ARM64 CPU libtorch via pip (no prebuilt aarch64 libtorch zip from pytorch.org)
+RUN pip3 install --break-system-packages \
+    "torch==${TORCH_VERSION}" \
+    --index-url https://download.pytorch.org/whl/cpu
+
+ENV LIBTORCH_PATH=/usr/local/lib/python3.12/dist-packages/torch
+
+# Copy source
+COPY . ./
+
+# Configure and build (CPU only — MPS unavailable in Linux containers)
+RUN mkdir build && cd build && \
+    cmake .. \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+        -DCMAKE_PREFIX_PATH=${LIBTORCH_PATH} \
+        -DCMAKE_INSTALL_PREFIX=/code/install \
+        -DGPU_RUNTIME=CPU && \
+    ninja && \
+    ninja install
+
+ENV PATH="/code/install/bin:${PATH}"
