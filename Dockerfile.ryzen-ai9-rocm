@@ -1,0 +1,85 @@
+# AMD Ryzen AI 9 HX 370 — ROCm / HIP build
+# Targets the Framework 13 (and similar) with integrated Radeon 890M (RDNA 3.5, gfx1151).
+#
+# CRITICAL: gfx1151 is not yet in ROCm's official support matrix.
+# HSA_OVERRIDE_GFX_VERSION=11.0.0 tricks the ROCm HSA runtime into treating
+# the iGPU as gfx1100 (RDNA3), which IS officially supported and is close enough
+# in ISA to work correctly for PyTorch / OpenSplat workloads.
+#
+# Base image already bundles ROCm 7.1 + PyTorch 2.8 — no separate installs needed.
+#
+# Build:
+#   docker build -f Dockerfile.ryzen-ai9-rocm \
+#     -t opensplat:ryzen-ai9-rocm .
+#
+# Run (requires ROCm-capable kernel + amdgpu driver on host):
+#   docker run --rm \
+#     --device=/dev/kfd \
+#     --device=/dev/dri \
+#     --group-add video \
+#     --ipc=host \
+#     --shm-size=8g \
+#     -e HSA_OVERRIDE_GFX_VERSION=11.0.0 \
+#     -v ~/data:/data \
+#     opensplat:ryzen-ai9-rocm \
+#     opensplat /data/project -o /data/output.ply
+#
+# Host requirements:
+#   - Linux kernel with amdgpu driver (6.8+ recommended; Fedora 41/Ubuntu 24.04)
+#   - ROCm-compatible kernel bits: /dev/kfd and /dev/dri must exist
+#   - User in 'video' group (or run as root)
+#   - Framework 13 BIOS with iGPU memory set to ≥4 GB (shared UMA)
+#
+# See: https://www.cicoria.com/getting-pytorch-rocm-working-on-a-framework-13-ryzen-ai-9-using-a-dev-container/
+
+ARG ROCM_VERSION=7.1
+ARG TORCH_TAG=release_2.8.0
+ARG CMAKE_BUILD_TYPE=Release
+
+FROM rocm/pytorch:rocm${ROCM_VERSION}_ubuntu24.04_py3.12_pytorch_${TORCH_TAG}
+
+ARG CMAKE_BUILD_TYPE
+
+SHELL ["/bin/bash", "-c"]
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- ROCm / GPU identity for Ryzen AI 9 HX 370 (Radeon 890M, gfx1151) ---
+# Override HSA to treat the iGPU as gfx1100 (RDNA3) — the nearest supported target.
+ENV HSA_OVERRIDE_GFX_VERSION=11.0.0
+ENV HCC_AMDGPU_TARGET=gfx1151
+ENV PYTORCH_ROCM_ARCH=gfx1151
+
+WORKDIR /code
+
+# Install build dependencies (PyTorch + ROCm already in base image)
+RUN apt-get update && \
+    apt-get install -y \
+        build-essential \
+        cmake \
+        git \
+        ninja-build \
+        libopencv-dev && \
+    apt-get autoremove -y --purge && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy source
+COPY . ./
+
+# Configure and build using HIP backend.
+# PyTorch lives in the conda env bundled in the rocm/pytorch image.
+RUN source activate py_3.12 && \
+    mkdir build && cd build && \
+    cmake .. \
+        -GNinja \
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+        -DGPU_RUNTIME=HIP \
+        -DHIP_ROOT_DIR=/opt/rocm \
+        -DCMAKE_PREFIX_PATH=/opt/conda/envs/py_3.12/lib/python3.12/site-packages/torch \
+        -DCMAKE_INSTALL_PREFIX=/code/install \
+        -DOPENSPLAT_BUILD_SIMPLE_TRAINER=ON && \
+    ninja && \
+    ninja install
+
+ENV PATH="/code/install/bin:${PATH}"
